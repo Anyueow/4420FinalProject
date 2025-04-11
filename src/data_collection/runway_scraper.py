@@ -26,10 +26,13 @@ class RunwayScraper:
         self.season = season
         self.save_dir = os.path.join(save_dir, season)
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'max-age=0'
         }
         
         # Create directories if they don't exist
@@ -45,45 +48,27 @@ class RunwayScraper:
     def get_show_links(self) -> List[str]:
         """Get links to all runway shows for the current season."""
         shows = []
-        page = 1
         
         try:
-            while True:
-                # Get the shows page with pagination
-                url = f"{self.base_url}/shows/page/{page}"
-                response = requests.get(url, headers=self.headers)
-                
-                if response.status_code == 404:
-                    break
-                
-                soup = BeautifulSoup(response.text, 'html.parser')
-                
-                # Find all articles
-                articles = soup.find_all('article')
-                if not articles:
-                    break
-                
-                found_shows = False
-                for article in articles:
-                    # Get the title and check if it's a Fall 25 show
-                    title_elem = article.find(['h1', 'h2'], class_='entry-title')
-                    if not title_elem:
-                        continue
-                        
-                    title = title_elem.text.strip()
-                    if self.season.lower() in title.lower():
-                        # Get the link to the full show
-                        link = article.find('a')
-                        if link and 'href' in link.attrs:
-                            shows.append(link['href'])
-                            found_shows = True
-                            logging.info(f"Found show: {title}")
-                
-                if not found_shows:
-                    break
-                    
-                page += 1
-                time.sleep(1)  # Be nice to the server
+            # Get the main landing page
+            url = f"{self.base_url}/"
+            logging.info(f"Fetching landing page: {url}")
+            
+            response = requests.get(url, headers=self.headers)
+            if response.status_code != 200:
+                logging.error(f"Failed to fetch landing page: Status {response.status_code}")
+                return shows
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Find all article links that match the runway show pattern
+            for link in soup.find_all('a', href=True):
+                href = link['href']
+                # Look for URLs matching the pattern: ready-to-wear-fall-winter-2025
+                if 'ready-to-wear' in href.lower() and 'fall' in href.lower() and '2025' in href:
+                    if href not in shows:
+                        shows.append(href)
+                        logging.info(f"Found show: {href}")
             
             logging.info(f"Found {len(shows)} shows for {self.season}")
             
@@ -97,24 +82,39 @@ class RunwayScraper:
         images = []
         designer = ""
         try:
+            logging.info(f"Fetching show: {show_url}")
+            
+            # Make sure we have the full URL
+            if not show_url.startswith('http'):
+                show_url = urllib.parse.urljoin(self.base_url, show_url)
+                
             response = requests.get(show_url, headers=self.headers)
+            
+            if response.status_code != 200:
+                logging.error(f"Failed to fetch show: Status {response.status_code}")
+                return images, designer
+                
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Get designer name from title
-            title_elem = soup.find(['h1', 'h2'], class_='entry-title')
-            if title_elem:
-                title = title_elem.text.strip()
-                # Extract designer name from format "DESIGNER NAME Fall 25"
-                designer = re.sub(r'\s+Fall\s+25.*$', '', title, flags=re.IGNORECASE)
+            # Extract designer name from URL pattern: saint-laurent-ready-to-wear...
+            url_parts = show_url.split('/')
+            for part in url_parts:
+                if 'ready-to-wear' in part:
+                    designer = part.split('-ready-to-wear')[0].replace('-', ' ').title()
+                    break
             
-            # Find all img tags with src containing media.nowfashion.com
-            for img in soup.find_all('img'):
-                if img.get('src') and 'media.nowfashion.com' in img['src']:
-                    src = img['src']
+            logging.info(f"Found designer: {designer}")
+            
+            # Find all img tags in the article content
+            article = soup.find('article') or soup
+            for img in article.find_all('img'):
+                src = img.get('src', '')
+                if src and ('.jpg' in src.lower() or '.jpeg' in src.lower() or '.png' in src.lower()):
                     # Get the highest resolution version by removing size suffix
                     src = re.sub(r'-\d+x\d+', '', src)
                     if src not in images:
                         images.append(src)
+                        logging.info(f"Found image: {src}")
             
             logging.info(f"Found {len(images)} images for {designer}")
             
