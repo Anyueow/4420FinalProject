@@ -9,10 +9,11 @@ from PIL import Image
 import matplotlib.colors as mcolors
 from collections import Counter, defaultdict
 import logging
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from sklearn.cluster import MiniBatchKMeans
+import glob
 
 class ColorAnalyzer:
     """Analyze colors in runway images using efficient clustering."""
@@ -66,151 +67,174 @@ class ColorAnalyzer:
         color_ycrcb = cv2.cvtColor(color.reshape(1, 1, 3), cv2.COLOR_RGB2YCrCb)[0, 0]
         return np.all(color_ycrcb >= self.ycrcb_min) and np.all(color_ycrcb <= self.ycrcb_max)
     
-    def extract_colors(self, image_path: str) -> List[Tuple[Tuple[int, int, int], float]]:
-        """Extract dominant colors from an image using MiniBatchKMeans."""
-        try:
-            # Read image directly with OpenCV for better performance
-            img = cv2.imread(image_path)
-            if img is None:
-                logging.error(f"Failed to read image: {image_path}")
-                return []
-            
-            # Preprocess image
-            img = self.preprocess_image(img)
-            
-            # Reshape for clustering
-            pixels = img.reshape(-1, 3)
-            
-            # Fit MiniBatchKMeans
-            self.kmeans.partial_fit(pixels)
-            labels = self.kmeans.predict(pixels)
-            centers = self.kmeans.cluster_centers_.astype(np.uint8)
-            
-            # Count pixels per cluster
-            counts = np.bincount(labels)
-            total_pixels = pixels.shape[0]
-            
-            # Process clusters
-            color_percentages = []
-            for center, count in zip(centers, counts):
-                percentage = (count / total_pixels) * 100
-                if percentage >= self.min_area_percentage and not self.is_skin_tone(center):
-                    color_percentages.append((tuple(center), percentage))
-            
-            # Sort by percentage and return top N
-            color_percentages.sort(key=lambda x: x[1], reverse=True)
-            return color_percentages[:self.n_colors]
-            
-        except Exception as e:
-            logging.error(f"Error extracting colors from {image_path}: {str(e)}")
-            return []
+    def extract_colors(self, image):
+        """Extract dominant colors from an image using KMeans clustering."""
+        # Resize image for faster processing
+        image = cv2.resize(image, (self.resize_size, self.resize_size))
+        
+        # Reshape the image to be a list of pixels
+        pixels = image.reshape(-1, 3)
+        
+        # Fit KMeans to the pixels
+        self.kmeans.fit(pixels)
+        
+        # Get the cluster centers and normalize them to be between 0 and 255
+        centers = np.clip(self.kmeans.cluster_centers_, 0, 255)
+        centers = centers.astype(np.uint8)
+        
+        # Count pixels in each cluster
+        labels = self.kmeans.labels_
+        counts = np.bincount(labels)
+        
+        # Calculate percentages
+        percentages = counts / len(pixels) * 100
+        
+        # Convert colors to hex format
+        colors = ['#%02x%02x%02x' % (center[0], center[1], center[2]) 
+                 for center in centers]
+        
+        return colors, percentages
     
-    def process_image_batch(self, image_paths: List[str]) -> Dict[str, List[Tuple[Tuple[int, int, int], float]]]:
-        """Process a batch of images in parallel."""
-        results = {}
-        with ThreadPoolExecutor(max_workers=self.n_jobs) as executor:
-            future_to_path = {
-                executor.submit(self.extract_colors, path): path 
-                for path in image_paths
-            }
-            for future in as_completed(future_to_path):
-                path = future_to_path[future]
-                try:
-                    results[path] = future.result()
-                except Exception as e:
-                    logging.error(f"Error processing {path}: {str(e)}")
-        return results
-    
-    def analyze_collection(self, image_dir: str) -> Dict[str, Dict[str, float]]:
-        """Analyze colors in a collection using batch processing."""
+    def process_image_batch(self, image_paths: List[str]) -> Dict[str, Dict[str, Union[int, float]]]:
+        """Process a batch of images and aggregate color statistics."""
         color_data = defaultdict(lambda: {'count': 0, 'total_percentage': 0.0})
+        total_images = 0
         
         try:
-            # Get all image paths
-            image_paths = [
-                os.path.join(image_dir, f) for f in os.listdir(image_dir)
-                if f.lower().endswith(('.jpg', '.jpeg', '.png'))
-            ]
-            
             # Process images in batches
             for i in range(0, len(image_paths), self.batch_size):
-                batch = image_paths[i:i + self.batch_size]
-                batch_results = self.process_image_batch(batch)
+                batch_paths = image_paths[i:i + self.batch_size]
+                batch_results = {}
+                
+                for path in batch_paths:
+                    try:
+                        # Read and process image
+                        img = cv2.imread(path)
+                        if img is None:
+                            logging.warning(f"Failed to read image: {path}")
+                            continue
+                            
+                        # Preprocess image
+                        img = self.preprocess_image(img)
+                        
+                        # Extract colors
+                        colors, percentages = self.extract_colors(img)
+                        
+                        # Filter colors based on area and skin tone
+                        filtered_results = []
+                        for color, percentage in zip(colors, percentages):
+                            if percentage >= self.min_area_percentage:
+                                # Convert hex to BGR for skin tone check
+                                color_bgr = np.array([int(color[i:i+2], 16) for i in (5,3,1)])
+                                if not self.is_skin_tone(color_bgr):
+                                    filtered_results.append((color, percentage))
+                        
+                        batch_results[path] = filtered_results
+                        total_images += 1
+                        
+                    except Exception as e:
+                        logging.error(f"Error processing image {path}: {str(e)}")
+                        continue
                 
                 # Aggregate results
-                for colors in batch_results.values():
-                    for color, percentage in colors:
-                        hex_color = mcolors.to_hex(np.array(color)/255)
-                        color_data[hex_color]['count'] += 1
-                        color_data[hex_color]['total_percentage'] += percentage
+                for results in batch_results.values():
+                    for color, percentage in results:
+                        color_data[color]['count'] += 1
+                        color_data[color]['total_percentage'] += percentage
+        
+        except Exception as e:
+            logging.error(f"Error in batch processing: {str(e)}")
+        
+        # Calculate average percentages
+        if total_images > 0:
+            for color_stats in color_data.values():
+                color_stats['average_percentage'] = color_stats['total_percentage'] / color_stats['count']
+        
+        return dict(color_data)
+    
+    def analyze_collection(self, image_dir: str) -> Dict[str, Dict[str, float]]:
+        """Analyze colors in a collection of images."""
+        try:
+            # Get all image paths
+            image_paths = []
+            for ext in ['*.jpg', '*.jpeg', '*.png']:
+                image_paths.extend(glob.glob(os.path.join(image_dir, ext)))
             
-            # Calculate averages and format results
-            result = {}
-            for color, data in color_data.items():
-                if data['count'] > 0:
-                    result[color] = {
-                        'count': data['count'],
-                        'average_percentage': round(data['total_percentage'] / data['count'], 2)
-                    }
+            if not image_paths:
+                logging.warning(f"No images found in directory: {image_dir}")
+                return {}
             
-            return dict(sorted(result.items(), 
-                             key=lambda x: x[1]['average_percentage'], 
-                             reverse=True))
+            # Process images in batches
+            color_data = self.process_image_batch(image_paths)
             
+            # Sort colors by count and get top N
+            sorted_colors = sorted(
+                color_data.items(),
+                key=lambda x: (x[1]['count'], x[1]['average_percentage']),
+                reverse=True
+            )[:self.n_colors]
+            
+            # Format results
+            results = {
+                'total_images': len(image_paths),
+                'colors': {}
+            }
+            
+            for color, stats in sorted_colors:
+                results['colors'][color] = {
+                    'count': stats['count'],
+                    'percentage': stats['average_percentage']
+                }
+            
+            return results
+        
         except Exception as e:
             logging.error(f"Error analyzing collection {image_dir}: {str(e)}")
             return {}
     
-    def create_color_dictionary(self, season_dir: str) -> Dict[str, Dict[str, List[Dict[str, any]]]]:
-        """Create a comprehensive color dictionary using parallel processing."""
-        color_dict = {}
-        
+    def create_color_dictionary(self, season_dir: str) -> Dict[str, Dict]:
+        """Create a dictionary of color data for all collections in a season."""
         try:
             # Get all designer directories
             designer_dirs = [d for d in os.listdir(season_dir) 
                            if os.path.isdir(os.path.join(season_dir, d))]
             
-            # Process collections in parallel
-            with ThreadPoolExecutor(max_workers=self.n_jobs) as executor:
-                future_to_designer = {
-                    executor.submit(self.analyze_collection, 
-                                  os.path.join(season_dir, d)): d 
-                    for d in designer_dirs
-                }
-                
-                for future in as_completed(future_to_designer):
-                    designer = future_to_designer[future]
-                    try:
-                        colors = future.result()
-                        if colors:
-                            # Get top colors
-                            top_colors = []
-                            for color, data in list(colors.items())[:5]:
-                                top_colors.append({
-                                    'color': color,
-                                    'count': data['count'],
-                                    'average_percentage': data['average_percentage']
-                                })
-                            
-                            # Count total images
-                            designer_path = os.path.join(season_dir, designer)
-                            total_images = len([f for f in os.listdir(designer_path)
-                                              if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
-                            
-                            color_dict[designer] = {
-                                'top_colors': top_colors,
-                                'total_images': total_images
-                            }
-                    except Exception as e:
-                        logging.error(f"Error processing {designer}: {str(e)}")
+            if not designer_dirs:
+                logging.warning(f"No designer directories found in {season_dir}")
+                return {}
             
-            # Save results
-            results_path = os.path.join(season_dir, 'color_dictionary.json')
-            with open(results_path, 'w') as f:
+            color_dict = {}
+            total_collections = len(designer_dirs)
+            
+            for idx, designer in enumerate(designer_dirs, 1):
+                designer_path = os.path.join(season_dir, designer)
+                logging.info(f"Processing collection {idx}/{total_collections}: {designer}")
+                
+                # Analyze collection
+                collection_data = self.analyze_collection(designer_path)
+                
+                if collection_data:
+                    color_dict[designer] = {
+                        'total_images': collection_data['total_images'],
+                        'colors': collection_data['colors']
+                    }
+                    
+                    # Log results
+                    logging.info(f"Analyzed {collection_data['total_images']} images from {designer}")
+                    logging.info("Top 5 colors:")
+                    for color, stats in list(collection_data['colors'].items())[:5]:
+                        logging.info(f"  {color}: {stats['count']} occurrences ({stats['percentage']:.2f}%)")
+                else:
+                    logging.warning(f"No valid data for collection: {designer}")
+            
+            # Save results to JSON
+            output_path = os.path.join(season_dir, 'color_dictionary.json')
+            with open(output_path, 'w') as f:
                 json.dump(color_dict, f, indent=2)
+            logging.info(f"Color dictionary saved to {output_path}")
             
             return color_dict
-            
+        
         except Exception as e:
             logging.error(f"Error creating color dictionary: {str(e)}")
             return {}
