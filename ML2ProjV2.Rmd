@@ -1,0 +1,52 @@
+---
+title: "ML2 Project"
+author: "Kaamil Ananya Ceci"
+output: html_document
+---
+
+UNFORTUNATELY: GOOGLE HAS bLOCKED US SO WE HAD TO USE THE CSV THAT WE WERE SAVING TO MAKE THIS a repeatable proccess 
+```{r setup, echo=TRUE}
+
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(lubridate)
+
+df <- read_csv("combined_fashion_trends_fixed.csv")
+head(df)
+
+head(df)
+
+df_wide <- df %>%
+  select(date, keyword, hits) %>%
+  pivot_wider(names_from = keyword, values_from = hits)
+
+df_wide$date <- as.Date(df_wide$date)
+
+ts_data <- ts(df_wide[,-1],
+              start = c(year(min(df_wide$date)), month(min(df_wide$date))),
+              frequency = 52)  
+
+#time series plotted
+plot(ts_data, main = "Google Trends Time Series for Fashion Keywords")
+
+decomposed <- decompose(ts_data[, "turtleneck sweater"], type = "multiplicative")
+plot(decomposed)
+title(main ="decomposed plot for turtleneck sweater" )
+
+decomposed <- decompose(ts_data[, "shearling slippers"], type = "multiplicative")
+plot(decomposed)
+title(main = "decomposed plot for shearling slippers")
+
+decomposed <- decompose(ts_data[, "long-sleeve bodysuit"], type = "multiplicative")
+plot(decomposed)
+title(main = "decomposed plot for long-sleeve bodysuit")
+
+decomposed <- decompose(ts_data[, "poncho cape"], type = "multiplicative")
+plot(decomposed)
+title(main = "decomposed plot for poncho cape")
+
+```
+
+
