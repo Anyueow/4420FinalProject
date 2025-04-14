@@ -1,0 +1,12 @@
+Top Predicted Trends:
+fur : 133.49 %
+fur : 133.49 %
+fur : 133.49 %
+relaxed elegance : 11.11 %
+slow fashion : 4.94 %
+
+Trend Statistics:
+Average Trend Volatility: 53.14 %
+Number of Increasing Trends: 2
+Number of Decreasing Trends: 2
+Number of Stable Trends: 0

@@ -1,182 +1,133 @@
-"""
-Visualize fashion trend analysis results.
-"""
-
-import json
-import matplotlib.pyplot as plt
-import seaborn as sns
+import streamlit as st
 import pandas as pd
-from typing import Dict
-import os
+import plotly.express as px
+import plotly.graph_objects as go
+from pathlib import Path
+import json
 
-class TrendVisualizer:
-    """Visualize fashion trend analysis results."""
+def load_feature_analysis():
+    """Load the feature analysis data."""
+    analysis_path = Path('data/processed/feature_analysis.json')
+    with open(analysis_path, 'r') as f:
+        return json.load(f)
+
+def analyze_super_category_trends(data):
+    """Analyze trends in super categories across seasons."""
+    trends = []
     
-    def __init__(self, trends_data: Dict, save_dir: str = "results/visualizations"):
-        self.trends_data = trends_data
-        self.save_dir = save_dir
-        os.makedirs(save_dir, exist_ok=True)
-        
-        # Set style
-        plt.style.use('seaborn')
-        sns.set_palette("husl")
+    # Extract super category data for each season
+    for season, season_data in data['categories'].items():
+        for super_cat, count in season_data['super_categories'].items():
+            trends.append({
+                'season': season,
+                'super_category': super_cat,
+                'count': count,
+                'percentage': (count / season_data['total_items']) * 100
+            })
     
-    def plot_top_trends(self, n: int = 10):
-        """Plot top N trends by total appearances."""
-        # Convert to DataFrame
-        df = pd.DataFrame([
-            {
-                'trend': trend,
-                'appearances': data['total_appearances'],
-                'designers': data['unique_designer_count']
-            }
-            for trend, data in self.trends_data.items()
-        ])
-        
-        # Sort and get top N
-        df = df.nlargest(n, 'appearances')
-        
-        # Create figure
-        plt.figure(figsize=(12, 6))
-        
-        # Plot bars
-        bars = plt.bar(df['trend'], df['appearances'])
-        
-        # Customize plot
-        plt.xticks(rotation=45, ha='right')
-        plt.title(f'Top {n} Fashion Trends by Appearances')
-        plt.xlabel('Trend')
-        plt.ylabel('Number of Appearances')
-        
-        # Add value labels
-        for bar in bars:
-            height = bar.get_height()
-            plt.text(bar.get_x() + bar.get_width()/2., height,
-                    f'{int(height)}',
-                    ha='center', va='bottom')
-        
-        plt.tight_layout()
-        plt.savefig(os.path.join(self.save_dir, 'top_trends.png'))
-        plt.close()
+    return pd.DataFrame(trends)
+
+def create_trend_visualizations(df):
+    """Create interactive visualizations for trend analysis."""
+    # Sort seasons chronologically
+    season_order = ['Fall24', 'Spring25', 'Fall25']
+    df['season'] = pd.Categorical(df['season'], categories=season_order, ordered=True)
     
-    def plot_designer_distribution(self, n: int = 10):
-        """Plot designer distribution for top N trends."""
-        # Convert to DataFrame
-        data = []
-        for trend, trend_data in self.trends_data.items():
-            for designer in trend_data['designer_appearances']:
-                data.append({
-                    'trend': trend,
-                    'designer': designer,
-                    'appearances': trend_data['shows'][designer]
-                })
-        
-        df = pd.DataFrame(data)
-        
-        # Get top N trends
-        top_trends = df.groupby('trend')['appearances'].sum().nlargest(n).index
-        df_top = df[df['trend'].isin(top_trends)]
-        
-        # Create heatmap
-        pivot_table = df_top.pivot_table(
-            values='appearances',
-            index='trend',
-            columns='designer',
-            fill_value=0
+    # Create bar chart for super category counts
+    fig_counts = px.bar(
+        df,
+        x='season',
+        y='count',
+        color='super_category',
+        title='Super Category Counts by Season',
+        labels={'count': 'Number of Items', 'season': 'Season'},
+        barmode='group'
+    )
+    
+    # Create line chart for percentage trends
+    fig_percentages = px.line(
+        df,
+        x='season',
+        y='percentage',
+        color='super_category',
+        title='Super Category Percentage Trends',
+        labels={'percentage': 'Percentage of Total Items (%)', 'season': 'Season'},
+        markers=True
+    )
+    
+    # Calculate trend changes
+    trend_changes = []
+    for super_cat in df['super_category'].unique():
+        cat_data = df[df['super_category'] == super_cat].sort_values('season')
+        if len(cat_data) > 1:
+            latest = cat_data.iloc[-1]['percentage']
+            previous = cat_data.iloc[-2]['percentage']
+            change = latest - previous
+            trend_changes.append({
+                'super_category': super_cat,
+                'change': change,
+                'trend': 'Increasing' if change > 0 else 'Decreasing'
+            })
+    
+    trend_df = pd.DataFrame(trend_changes)
+    
+    # Create bar chart for trend changes
+    fig_changes = px.bar(
+        trend_df,
+        x='super_category',
+        y='change',
+        color='trend',
+        title='Recent Super Category Trend Changes',
+        labels={'change': 'Percentage Point Change', 'super_category': 'Super Category'},
+        color_discrete_map={'Increasing': 'green', 'Decreasing': 'red'}
+    )
+    
+    return fig_counts, fig_percentages, fig_changes, trend_df
+
+def main():
+    st.title("Fashion Trend Analysis Dashboard")
+    
+    # Load and analyze data
+    data = load_feature_analysis()
+    trends_df = analyze_super_category_trends(data)
+    
+    # Create visualizations
+    fig_counts, fig_percentages, fig_changes, trend_df = create_trend_visualizations(trends_df)
+    
+    # Display visualizations
+    st.plotly_chart(fig_counts, use_container_width=True)
+    st.plotly_chart(fig_percentages, use_container_width=True)
+    st.plotly_chart(fig_changes, use_container_width=True)
+    
+    # Display trend summary
+    st.subheader("Trend Summary")
+    st.write("Recent changes in super category popularity:")
+    
+    # Create a styled table for trend changes
+    st.dataframe(
+        trend_df.style.apply(
+            lambda x: ['background-color: lightgreen' if v > 0 else 'background-color: lightcoral' 
+                      for v in x['change']],
+            subset=['change']
         )
-        
-        # Plot heatmap
-        plt.figure(figsize=(15, 8))
-        sns.heatmap(pivot_table, annot=True, fmt='d', cmap='YlOrRd')
-        
-        plt.title(f'Designer Distribution for Top {n} Trends')
-        plt.xticks(rotation=45, ha='right')
-        plt.tight_layout()
-        plt.savefig(os.path.join(self.save_dir, 'designer_distribution.png'))
-        plt.close()
+    )
     
-    def plot_trend_timeline(self, n: int = 5):
-        """Plot timeline of top N trends across shows."""
-        # Convert to DataFrame with show order
-        data = []
-        for trend, trend_data in self.trends_data.items():
-            for designer, count in trend_data['shows'].items():
-                data.append({
-                    'trend': trend,
-                    'designer': designer,
-                    'appearances': count
-                })
-        
-        df = pd.DataFrame(data)
-        
-        # Get top N trends
-        top_trends = df.groupby('trend')['appearances'].sum().nlargest(n).index
-        df_top = df[df['trend'].isin(top_trends)]
-        
-        # Create line plot
-        plt.figure(figsize=(15, 8))
-        
-        for trend in top_trends:
-            trend_data = df_top[df_top['trend'] == trend]
-            plt.plot(trend_data['designer'], trend_data['appearances'],
-                    marker='o', label=trend)
-        
-        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-        plt.xticks(rotation=45, ha='right')
-        plt.title(f'Trend Timeline Across Shows')
-        plt.xlabel('Designer Shows (in order)')
-        plt.ylabel('Number of Appearances')
-        
-        plt.tight_layout()
-        plt.savefig(os.path.join(self.save_dir, 'trend_timeline.png'))
-        plt.close()
+    # Add detailed analysis
+    st.subheader("Detailed Analysis")
     
-    def generate_report(self):
-        """Generate a comprehensive trend report."""
-        report = {
-            'summary': {
-                'total_trends': len(self.trends_data),
-                'total_designers': len(set(
-                    designer
-                    for trend_data in self.trends_data.values()
-                    for designer in trend_data['designer_appearances']
-                )),
-            },
-            'top_trends': sorted(
-                [
-                    {
-                        'trend': trend,
-                        'total_appearances': data['total_appearances'],
-                        'unique_designers': data['unique_designer_count'],
-                        'top_designers': sorted(
-                            data['shows'].items(),
-                            key=lambda x: x[1],
-                            reverse=True
-                        )[:5]
-                    }
-                    for trend, data in self.trends_data.items()
-                ],
-                key=lambda x: x['total_appearances'],
-                reverse=True
-            )[:10]
-        }
-        
-        # Save report
-        with open(os.path.join(self.save_dir, 'trend_report.json'), 'w') as f:
-            json.dump(report, f, indent=2)
-        
-        return report
+    # Get the latest season's data
+    latest_season = trends_df['season'].max()
+    latest_data = trends_df[trends_df['season'] == latest_season].sort_values('percentage', ascending=False)
+    
+    st.write(f"Current Season ({latest_season}) Distribution:")
+    st.dataframe(latest_data[['super_category', 'count', 'percentage']].style.format({'percentage': '{:.1f}%'}))
+    
+    # Highlight significant changes
+    significant_changes = trend_df[abs(trend_df['change']) > 5]
+    if not significant_changes.empty:
+        st.write("Significant Trend Changes:")
+        for _, row in significant_changes.iterrows():
+            st.write(f"- {row['super_category']}: {'Increased' if row['change'] > 0 else 'Decreased'} by {abs(row['change']):.1f} percentage points")
 
-def visualize_trends(trends_data: Dict, save_dir: str = "results/visualizations"):
-    """Main function to create all visualizations."""
-    visualizer = TrendVisualizer(trends_data, save_dir)
-    
-    # Generate all plots
-    visualizer.plot_top_trends()
-    visualizer.plot_designer_distribution()
-    visualizer.plot_trend_timeline()
-    
-    # Generate report
-    report = visualizer.generate_report()
-    
-    return report 
+if __name__ == "__main__":
+    main() 

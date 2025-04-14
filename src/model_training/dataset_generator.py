@@ -266,7 +266,7 @@ class DatasetGenerator:
                 self.pattern_to_super[pattern] = super_pattern
     
     def process_image(self, image_path: str) -> dict:
-        """Process a single image and return its classifications."""
+        """Process a single image and return its classifications with optimized memory usage."""
         try:
             # Load and preprocess image
             image = Image.open(image_path).convert('RGB')
@@ -275,36 +275,54 @@ class DatasetGenerator:
             with torch.no_grad():
                 results = {}
                 
-                # Process categories
-                inputs = self.processor(
-                    images=image,
-                    text=self.flat_categories,
-                    return_tensors="pt",
-                    padding=True
-                ).to(self.device)
-                
-                outputs = self.model(**inputs)
-                category_probs = outputs.logits_per_image.softmax(dim=1)[0]
-                max_category_prob, max_category_idx = torch.max(category_probs, dim=0)
-                
-                # Clear memory immediately
-                del inputs, outputs, category_probs
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                
-                # Only continue if category confidence meets threshold
-                if float(max_category_prob) >= self.confidence_threshold:
-                    predicted_category = self.flat_categories[max_category_idx]
-                    results['category'] = {
-                        'label': predicted_category,
-                        'super_category': self.category_to_super[predicted_category],
-                        'confidence': float(max_category_prob)
-                    }
+                # Process categories in smaller groups
+                category_groups = [list(self.categories.keys())[i:i+3] for i in range(0, len(self.categories), 3)]
+                for group in category_groups:
+                    # Get all subcategories for this group
+                    group_categories = []
+                    for cat in group:
+                        group_categories.extend(self.categories[cat])
                     
-                    # Process styles
+                    # Process this group
                     inputs = self.processor(
                         images=image,
-                        text=self.flat_styles,
+                        text=group_categories,
+                        return_tensors="pt",
+                        padding=True
+                    ).to(self.device)
+                    
+                    outputs = self.model(**inputs)
+                    category_probs = outputs.logits_per_image.softmax(dim=1)[0]
+                    max_category_prob, max_category_idx = torch.max(category_probs, dim=0)
+                    
+                    # Clear memory immediately
+                    del inputs, outputs, category_probs
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                    
+                    # Only continue if category confidence meets threshold
+                    if float(max_category_prob) >= self.confidence_threshold:
+                        predicted_category = group_categories[max_category_idx]
+                        results['category'] = {
+                            'label': predicted_category,
+                            'super_category': self.category_to_super[predicted_category],
+                            'confidence': float(max_category_prob)
+                        }
+                        break
+                
+                if 'category' not in results:
+                    return None
+                
+                # Process styles in smaller groups
+                style_groups = [list(self.styles.keys())[i:i+2] for i in range(0, len(self.styles), 2)]
+                for group in style_groups:
+                    group_styles = []
+                    for style in group:
+                        group_styles.extend(self.styles[style])
+                    
+                    inputs = self.processor(
+                        images=image,
+                        text=group_styles,
                         return_tensors="pt",
                         padding=True
                     ).to(self.device)
@@ -313,22 +331,29 @@ class DatasetGenerator:
                     style_probs = outputs.logits_per_image.softmax(dim=1)[0]
                     max_style_prob, max_style_idx = torch.max(style_probs, dim=0)
                     
-                    # Clear memory immediately
                     del inputs, outputs, style_probs
                     if torch.cuda.is_available():
                         torch.cuda.empty_cache()
                     
-                    predicted_style = self.flat_styles[max_style_idx]
-                    results['style'] = {
-                        'label': predicted_style,
-                        'super_style': self.style_to_super[predicted_style],
-                        'confidence': float(max_style_prob)
-                    }
+                    if float(max_style_prob) >= self.confidence_threshold:
+                        predicted_style = group_styles[max_style_idx]
+                        results['style'] = {
+                            'label': predicted_style,
+                            'super_style': self.style_to_super[predicted_style],
+                            'confidence': float(max_style_prob)
+                        }
+                        break
+                
+                # Process patterns in smaller groups
+                pattern_groups = [list(self.patterns.keys())[i:i+2] for i in range(0, len(self.patterns), 2)]
+                for group in pattern_groups:
+                    group_patterns = []
+                    for pattern in group:
+                        group_patterns.extend(self.patterns[pattern])
                     
-                    # Process patterns
                     inputs = self.processor(
                         images=image,
-                        text=self.flat_patterns,
+                        text=group_patterns,
                         return_tensors="pt",
                         padding=True
                     ).to(self.device)
@@ -337,20 +362,21 @@ class DatasetGenerator:
                     pattern_probs = outputs.logits_per_image.softmax(dim=1)[0]
                     max_pattern_prob, max_pattern_idx = torch.max(pattern_probs, dim=0)
                     
-                    # Clear memory immediately
                     del inputs, outputs, pattern_probs
                     if torch.cuda.is_available():
                         torch.cuda.empty_cache()
                     
-                    predicted_pattern = self.flat_patterns[max_pattern_idx]
-                    results['pattern'] = {
-                        'label': predicted_pattern,
-                        'super_pattern': self.pattern_to_super[predicted_pattern],
-                        'confidence': float(max_pattern_prob)
-                    }
-                    
-                    results['path'] = image_path
-                    return results
+                    if float(max_pattern_prob) >= self.confidence_threshold:
+                        predicted_pattern = group_patterns[max_pattern_idx]
+                        results['pattern'] = {
+                            'label': predicted_pattern,
+                            'super_pattern': self.pattern_to_super[predicted_pattern],
+                            'confidence': float(max_pattern_prob)
+                        }
+                        break
+                
+                results['path'] = image_path
+                return results
             
             return None
             
@@ -359,14 +385,7 @@ class DatasetGenerator:
             return None
     
     def generate_dataset(self, source_dir: str, output_dir: str, n_jobs: int = 1, image_paths: list = None) -> dict:
-        """Generate labeled dataset from source images and save as CSV.
-        
-        Args:
-            source_dir: Directory containing source images
-            output_dir: Directory to save processed images and results
-            n_jobs: Number of parallel jobs (default: 1)
-            image_paths: Optional list of specific image paths to process
-        """
+        """Generate labeled dataset from source images with optimized batch processing."""
         try:
             # Create output directory
             os.makedirs(output_dir, exist_ok=True)
@@ -389,13 +408,14 @@ class DatasetGenerator:
             csv_data = []
             headers = ['image_path', 'category', 'super_category', 'style', 'super_style', 'pattern', 'super_pattern']
             
-            # Process images in small batches
+            # Process images in optimized batches
             results = []
-            total_batches = (len(image_paths) + self.batch_size - 1) // self.batch_size
+            total_images = len(image_paths)
+            batch_size = min(self.batch_size, 8)  # Reduced batch size for memory efficiency
             
-            for i in range(0, len(image_paths), self.batch_size):
-                batch_paths = image_paths[i:i + self.batch_size]
-                logging.info(f"\nProcessing batch {i//self.batch_size + 1}/{total_batches}")
+            for i in range(0, total_images, batch_size):
+                batch_paths = image_paths[i:i + batch_size]
+                logging.info(f"\nProcessing batch {i//batch_size + 1}/{(total_images + batch_size - 1)//batch_size}")
                 
                 # Process each image in the batch
                 for path in tqdm(batch_paths, desc="Processing images"):
@@ -408,10 +428,10 @@ class DatasetGenerator:
                                 path,
                                 result['category']['label'],
                                 result['category']['super_category'],
-                                result['style']['label'],
-                                result['style']['super_style'],
-                                result['pattern']['label'],
-                                result['pattern']['super_pattern']
+                                result.get('style', {}).get('label', ''),
+                                result.get('style', {}).get('super_style', ''),
+                                result.get('pattern', {}).get('label', ''),
+                                result.get('pattern', {}).get('super_pattern', '')
                             ])
                     except Exception as e:
                         logging.error(f"Error processing image {path}: {str(e)}")
@@ -454,10 +474,12 @@ class DatasetGenerator:
             for result in results:
                 dataset_info['categories'][result['category']['label']] += 1
                 dataset_info['super_categories'][result['category']['super_category']] += 1
-                dataset_info['styles'][result['style']['label']] += 1
-                dataset_info['super_styles'][result['style']['super_style']] += 1
-                dataset_info['patterns'][result['pattern']['label']] += 1
-                dataset_info['super_patterns'][result['pattern']['super_pattern']] += 1
+                if 'style' in result:
+                    dataset_info['styles'][result['style']['label']] += 1
+                    dataset_info['super_styles'][result['style']['super_style']] += 1
+                if 'pattern' in result:
+                    dataset_info['patterns'][result['pattern']['label']] += 1
+                    dataset_info['super_patterns'][result['pattern']['super_pattern']] += 1
             
             return dataset_info
             
