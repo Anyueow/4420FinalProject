@@ -5,21 +5,52 @@ This project aims to predict emerging fashion trends by analyzing social media c
 
 ### Core Components
 1. **Image Classification and Segmentation Model**
-   - Using the iMaterialist Fashion 2020 dataset to train a model for:
-     - Garment segmentation and classification
-     - Attribute detection (colors, patterns, styles)
-   - Based on Mask R-CNN architecture with SpineNet-143 backbone
-   - Multi-task learning approach for both segmentation and attribute classification
+   Developed a custom Convolutional Neural Network (CNN) using PyTorch to classify fashion product images based on:
+   - Clothing type (e.g., T-shirts, hoodies, baggy pants)
+   - Dominant color (e.g., red, black, green)
+The model was trained on the Fashion Product Images Dataset from Kaggle:
+https://www.kaggle.com/datasets/paramaggarwal/fashion-product-images-dataset/data
+Multi-task learning architecture with two parallel output heads:
+   - One for predicting the clothing article type
+   - One for predicting the dominant color attribute
+The architecture includes:
+   - 3 stacked convolutional layers for progressively deeper visual feature extraction
+   - Two max-pooling layers to reduce spatial resolution and capture hierarchical patterns
+   - Dropout layer to prevent overfitting
+   - Two fully connected dense layers before branching into separate classification heads
+Input preprocessing:
+   - Resized images to 64×64 pixels
+   - Normalized pixel values
+   - Data augmentation (random flips, crops) to improve generalization
+Model Outputs:
+   - Top-1 and top-3 predicted labels for each task
+   - Comparison with ground truth labels for evaluation
+   - Accuracy and confusion matrix to measure classification performance
+Interpretability Features:
+   - Added Grad-CAM visualizations to highlight which regions of the image the CNN used for prediction
+   - Helps verify that the model focuses on the clothing itself (e.g., torso area) rather than background noise
+This model supports the broader goal of connecting visual fashion trends (seen in real-world images) to the temporal popularity of these items in digital culture (tracked via Google Trends).
 
 2. **Data Collection Pipeline**
    - Web scraping from fashion blogs and social media platforms
-   - Focus on platforms: X (Twitter) and fashion blogs (e.g., Vogue)
+   - Focus on platforms: Google Trends
    - Collection of both images and associated text content
 
 3. **Trend Analysis System**
-   - NLP processing of captions and comments
-   - Computer vision analysis of images
-   - Time-series analysis for trend prediction
+Conducted a time series analysis of public interest in trending fashion items using Google Trends data over a 5-year period.
+Focused on keywords closely related to clothing categories analyzed by the CNN model, including: "baggy jeans", "cargo pants", "leather jacket"
+Utilized the R package gtrendsR to fetch global web search interest data from Google Trends.
+Workflow included:
+   - Fetching normalized weekly interest data from 2019 to 2024
+   - Exporting raw and cleaned time series data to CSV for reproducibility
+   - Visualizing search interest over time using ggplot2 to highlight trends and seasonal spikes
+performed classical time series decomposition to separate:
+Trend — long-term directional movement (e.g., steady rise in interest for "baggy jeans")
+Seasonal — repeating annual cycles (e.g., spikes during spring/summer or fashion weeks)
+Residual — random fluctuation and noise not explained by trend or seasonality
+
+
+
 
 ## Model Architecture
 ```
