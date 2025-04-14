@@ -113,7 +113,6 @@ if ("turtleneck sweater" %in% colnames(ts_data2)) {
 write.csv(df2, "google_fashion_trends_cleaned-2.csv", row.names = FALSE)
 
 
-# Load libraries
 library(readr)
 library(dplyr)
 library(tidyr)
