@@ -449,7 +449,7 @@ class DatasetGenerator:
             
             # Save to CSV
             import csv
-            csv_path = os.path.join(output_dir, 'fashion_labels_fall24.csv')
+            csv_path = os.path.join(output_dir, 'fashion_labels_Fall23.csv')
             with open(csv_path, 'w', newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow(headers)

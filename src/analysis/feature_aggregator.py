@@ -21,12 +21,22 @@ class FashionFeatureAggregator:
     def load_data(self) -> None:
         """Load data from all season CSV files."""
         for season in self.seasons:
-            file_path = self.data_dir / f"fashion_labels_{season.lower()}.csv"
-            if file_path.exists():
-                self.data[season] = pd.read_csv(file_path)
-                print(f"Loaded data for {season}")
-            else:
-                print(f"Warning: No data found for {season} at {file_path}")
+            # Try both original and color-enhanced filenames
+            file_paths = [
+                self.data_dir / f"fashion_labels_{season.lower()}_with_colors.csv",
+                self.data_dir / f"fashion_labels_{season.lower()}.csv"
+            ]
+            
+            loaded = False
+            for file_path in file_paths:
+                if file_path.exists():
+                    self.data[season] = pd.read_csv(file_path)
+                    print(f"Loaded data for {season} from {file_path}")
+                    loaded = True
+                    break
+                    
+            if not loaded:
+                print(f"Warning: No data found for {season}")
     
     def aggregate_categories(self) -> Dict[str, Dict]:
         """Aggregate category frequencies across seasons."""
@@ -79,6 +89,54 @@ class FashionFeatureAggregator:
             }
         return pattern_stats
     
+    def aggregate_colors(self) -> Dict[str, Dict]:
+        """Aggregate color frequencies and trends across seasons."""
+        color_stats = {}
+        
+        for season, df in self.data.items():
+            # Check if color columns exist
+            color_columns = [col for col in df.columns if col.startswith('color_') and not col.endswith('_percentage')]
+            if not color_columns:
+                print(f"Warning: No color data found for {season}")
+                continue
+                
+            season_colors = {}
+            
+            # Aggregate primary colors (color_1)
+            primary_colors = df['color_1'].value_counts().to_dict()
+            season_colors['primary_colors'] = primary_colors
+            
+            # Aggregate all colors with their percentages
+            all_colors = {}
+            for i in range(1, 6):  # Assuming up to 5 colors per image
+                color_col = f'color_{i}'
+                pct_col = f'color_{i}_percentage'
+                
+                if color_col in df.columns and pct_col in df.columns:
+                    color_data = df.groupby(color_col)[pct_col].mean().to_dict()
+                    for color, percentage in color_data.items():
+                        if color and not pd.isna(color):
+                            if color in all_colors:
+                                all_colors[color]['count'] += len(df[df[color_col] == color])
+                                all_colors[color]['avg_percentage'] = (all_colors[color]['avg_percentage'] + percentage) / 2
+                            else:
+                                all_colors[color] = {
+                                    'count': len(df[df[color_col] == color]),
+                                    'avg_percentage': percentage
+                                }
+            
+            season_colors['all_colors'] = all_colors
+            
+            # Calculate color combinations
+            if len(color_columns) >= 2:
+                color_combos = df.groupby(['color_1', 'color_2']).size().reset_index(name='count')
+                top_combos = color_combos.nlargest(10, 'count').to_dict('records')
+                season_colors['top_color_combinations'] = top_combos
+            
+            color_stats[season] = season_colors
+        
+        return color_stats
+    
     def calculate_trend_changes(self) -> Dict[str, Dict]:
         """Calculate changes in feature frequencies between seasons."""
         trend_changes = {}
@@ -122,6 +180,53 @@ class FashionFeatureAggregator:
         
         return trend_changes
     
+    def calculate_color_trends(self) -> Dict[str, Dict]:
+        """Calculate changes in color usage between seasons."""
+        color_trends = {}
+        
+        # Get all unique colors across seasons
+        all_colors = set()
+        for season_data in self.data.values():
+            if 'color_1' in season_data.columns:
+                all_colors.update(season_data['color_1'].dropna().unique())
+        
+        # Calculate changes between consecutive seasons
+        for i in range(len(self.seasons) - 1):
+            current_season = self.seasons[i]
+            next_season = self.seasons[i + 1]
+            
+            if current_season in self.data and next_season in self.data:
+                current_df = self.data[current_season]
+                next_df = self.data[next_season]
+                
+                if 'color_1' not in current_df.columns or 'color_1' not in next_df.columns:
+                    continue
+                
+                # Calculate primary color changes
+                current_colors = current_df['color_1'].value_counts(normalize=True)
+                next_colors = next_df['color_1'].value_counts(normalize=True)
+                
+                # Calculate percentage changes
+                color_changes = {}
+                for color in all_colors:
+                    current_pct = current_colors.get(color, 0)
+                    next_pct = next_colors.get(color, 0)
+                    change = next_pct - current_pct
+                    if abs(change) > 0.01:  # Only include significant changes
+                        color_changes[color] = {
+                            'change': change,
+                            'current_percentage': current_pct,
+                            'next_percentage': next_pct
+                        }
+                
+                color_trends[f"{current_season}_to_{next_season}"] = {
+                    'color_changes': color_changes,
+                    'emerging_colors': [c for c, v in color_changes.items() if v['change'] > 0.05],
+                    'declining_colors': [c for c, v in color_changes.items() if v['change'] < -0.05]
+                }
+        
+        return color_trends
+
     def analyze(self) -> Dict:
         """Run all analyses and return aggregated results."""
         self.load_data()
@@ -133,7 +238,9 @@ class FashionFeatureAggregator:
             'categories': self.aggregate_categories(),
             'styles': self.aggregate_styles(),
             'patterns': self.aggregate_patterns(),
-            'trend_changes': self.calculate_trend_changes()
+            'colors': self.aggregate_colors(),
+            'trend_changes': self.calculate_trend_changes(),
+            'color_trends': self.calculate_color_trends()
         }
         
         # Ensure output directory exists
@@ -151,6 +258,17 @@ def main():
         aggregator = FashionFeatureAggregator()
         results = aggregator.analyze()
         print("Feature analysis completed. Results saved to feature_analysis.json")
+        
+        # Print color trend highlights
+        if 'color_trends' in results:
+            print("\nColor Trend Highlights:")
+            for transition, trends in results['color_trends'].items():
+                print(f"\n{transition}:")
+                if trends['emerging_colors']:
+                    print("Emerging colors:", ", ".join(trends['emerging_colors']))
+                if trends['declining_colors']:
+                    print("Declining colors:", ", ".join(trends['declining_colors']))
+                
     except Exception as e:
         print(f"Error during analysis: {e}")
 

@@ -1,5 +1,5 @@
 """
-Color analysis for runway images using K-means clustering.
+Color analysis for runway images using K-means clustering and CSV integration.
 """
 
 import os
@@ -10,8 +10,9 @@ import pandas as pd
 from sklearn.cluster import KMeans
 from collections import Counter
 import matplotlib.pyplot as plt
-from matplotlib.colors import rgb2hex
+from matplotlib.colors import rgb2hex, hex2color
 import logging
+import json
 
 logging.basicConfig(level=logging.INFO)
 
@@ -74,122 +75,71 @@ class ColorAnalyzer:
             logging.error(f"Error extracting colors: {str(e)}")
             return []
 
-    def analyze_designer_collection(self, collection_path, season):
-        """Analyze colors for a single designer collection."""
+    def analyze_image_colors(self, image_path):
+        """Analyze colors for a single image."""
         try:
-            collection_path = Path(collection_path)
-            designer = collection_path.name
-            
-            # Get all images
-            image_files = []
-            for ext in ['*.jpg', '*.jpeg', '*.png']:
-                image_files.extend(list(collection_path.glob(ext)))
-            
-            if not image_files:
-                logging.warning(f"No images found in {collection_path}")
-                return pd.DataFrame()
-            
+            img = self.preprocess_image(image_path)
+            if img is not None:
+                colors = self.extract_colors(img)
+                # Return top colors and their percentages
+                return {
+                    f'color_{i+1}': color[0] for i, color in enumerate(colors)
+                }, {
+                    f'color_{i+1}_percentage': round(color[1], 2) for i, color in enumerate(colors)
+                }
+            return {}, {}
+        except Exception as e:
+            logging.error(f"Error analyzing image colors {image_path}: {str(e)}")
+            return {}, {}
+
+    def process_fashion_labels(self, labels_path, output_path=None):
+        """Add color analysis to existing fashion labels CSV."""
+        try:
+            # Read existing labels
+            df = pd.read_csv(labels_path)
+            logging.info(f"Processing {len(df)} images from fashion labels")
+
+            # Initialize new columns for colors
+            for i in range(1, self.n_colors + 1):
+                df[f'color_{i}'] = ''
+                df[f'color_{i}_percentage'] = 0.0
+
             # Process each image
-            all_colors = []
-            for img_path in image_files:
-                img = self.preprocess_image(img_path)
-                if img is not None:
-                    colors = self.extract_colors(img)
-                    all_colors.extend(colors)
-            
-            # Aggregate colors
-            color_data = []
-            if all_colors:
-                color_counter = Counter()
-                for color, percentage in all_colors:
-                    color_counter[color] += percentage
+            for idx, row in df.iterrows():
+                image_path = row['image_path']
+                colors, percentages = self.analyze_image_colors(image_path)
                 
-                # Get top colors
-                for color, total_percentage in color_counter.most_common(self.n_colors):
-                    color_data.append({
-                        'season': season,
-                        'designer': designer,
-                        'color': color,
-                        'percentage': round(total_percentage / len(image_files), 2)
-                    })
-            
-            return pd.DataFrame(color_data)
-            
-        except Exception as e:
-            logging.error(f"Error analyzing collection {collection_path}: {str(e)}")
-            return pd.DataFrame()
+                # Update dataframe with color information
+                for col, value in colors.items():
+                    df.at[idx, col] = value
+                for col, value in percentages.items():
+                    df.at[idx, col] = value
 
-    def analyze_season(self, season_path):
-        """Analyze all collections in a season."""
-        try:
-            season_path = Path(season_path)
-            season = season_path.name
-            logging.info(f"Analyzing season: {season}")
-            
-            # Get all designer directories
-            designer_dirs = [d for d in season_path.iterdir() if d.is_dir()]
-            
-            if not designer_dirs:
-                logging.warning(f"No designer directories found in {season_path}")
-                return pd.DataFrame(), pd.DataFrame()
-            
-            # Analyze each designer
-            all_designer_data = []
-            for designer_dir in designer_dirs:
-                designer_df = self.analyze_designer_collection(designer_dir, season)
-                if not designer_df.empty:
-                    all_designer_data.append(designer_df)
-            
-            if not all_designer_data:
-                return pd.DataFrame(), pd.DataFrame()
-            
-            # Combine designer data
-            designer_data = pd.concat(all_designer_data, ignore_index=True)
-            
-            # Calculate season summary
-            season_data = (designer_data.groupby('color')['percentage']
-                         .mean()
-                         .reset_index()
-                         .sort_values('percentage', ascending=False)
-                         .head(10))
-            season_data['season'] = season
-            
-            return designer_data, season_data
-            
-        except Exception as e:
-            logging.error(f"Error analyzing season {season_path}: {str(e)}")
-            return pd.DataFrame(), pd.DataFrame()
+                if idx % 10 == 0:
+                    logging.info(f"Processed {idx + 1}/{len(df)} images")
 
-    def save_results(self, designer_data, season_data, output_dir):
-        """Save analysis results to CSV files."""
-        try:
-            output_dir = Path(output_dir)
-            output_dir.mkdir(parents=True, exist_ok=True)
+            # Save updated CSV
+            output_path = output_path or labels_path
+            df.to_csv(output_path, index=False)
+            logging.info(f"Saved updated fashion labels with colors to {output_path}")
             
-            if not designer_data.empty:
-                designer_data.to_csv(output_dir / 'designer_colors.csv', index=False)
-                logging.info(f"Saved designer colors to {output_dir / 'designer_colors.csv'}")
-            
-            if not season_data.empty:
-                season_data.to_csv(output_dir / 'season_colors.csv', index=False)
-                logging.info(f"Saved season colors to {output_dir / 'season_colors.csv'}")
-                
-        except Exception as e:
-            logging.error(f"Error saving results: {str(e)}")
+            return df
 
-    def plot_color_distribution(self, data, title):
-        """Plot color distribution."""
-        try:
-            plt.figure(figsize=(12, 4))
-            colors = data['color'].tolist()
-            percentages = data['percentage'].tolist()
-            
-            plt.bar(range(len(colors)), percentages, color=colors)
-            plt.title(title)
-            plt.xticks(range(len(colors)), colors, rotation=45)
-            plt.ylabel('Percentage (%)')
-            plt.tight_layout()
-            plt.show()
-            
         except Exception as e:
-            logging.error(f"Error plotting colors: {str(e)}") 
+            logging.error(f"Error processing fashion labels: {str(e)}")
+            return None
+
+def main():
+    """Main function to run color analysis pipeline."""
+    import argparse
+    parser = argparse.ArgumentParser(description='Add color analysis to fashion labels')
+    parser.add_argument('--input_csv', type=str, required=True, help='Path to fashion_labels.csv')
+    parser.add_argument('--output_csv', type=str, help='Path to save updated CSV (optional)')
+    parser.add_argument('--n_colors', type=int, default=5, help='Number of dominant colors to extract')
+    args = parser.parse_args()
+
+    analyzer = ColorAnalyzer(n_colors=args.n_colors)
+    analyzer.process_fashion_labels(args.input_csv, args.output_csv)
+
+if __name__ == '__main__':
+    main() 

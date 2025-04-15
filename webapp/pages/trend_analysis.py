@@ -5,15 +5,18 @@ import plotly.graph_objects as go
 from pathlib import Path
 import json
 
-# Set page config
+# Set page config with light mode
 st.set_page_config(
     page_title="Fashion Trend Analysis",
     page_icon="📊",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
+
 
 # Title
 st.title("📊 Fashion Trend Analysis")
+
 
 # Get the absolute path to the project root
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -67,7 +70,25 @@ def plot_trend_over_time(df, feature_col, title):
                   title=title,
                   labels={'percentage': 'Percentage (%)', 'season': 'Season'},
                   markers=True)
-    fig.update_layout(height=500)
+    
+    # Set transparent background and improved styling
+    fig.update_layout(
+        height=500,
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        title_x=0.5,
+        title_font_size=20,
+        legend=dict(
+            bgcolor='rgba(0,0,0,0)',
+            bordercolor='rgba(0,0,0,0)'
+        ),
+        margin=dict(t=50, l=50, r=50, b=50)
+    )
+    # Update grid and axes for better visibility
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.2)',
+                     title_font=dict(size=14), tickfont=dict(size=12))
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.2)',
+                     title_font=dict(size=14), tickfont=dict(size=12))
     return fig
 
 def plot_predictions(df, feature_col, title):
@@ -83,7 +104,68 @@ def plot_predictions(df, feature_col, title):
                      'Medium': '#f1c40f',
                      'Low': '#e74c3c'
                  })
-    fig.update_layout(height=500)
+    
+    # Set transparent background and improved styling
+    fig.update_layout(
+        height=500,
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        title_x=0.5,
+        title_font_size=20,
+        legend=dict(
+            bgcolor='rgba(0,0,0,0)',
+            bordercolor='rgba(0,0,0,0)'
+        ),
+        margin=dict(t=50, l=50, r=50, b=50)
+    )
+    # Update grid and axes for better visibility
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.2)',
+                     title_font=dict(size=14), tickfont=dict(size=12))
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.2)',
+                     title_font=dict(size=14), tickfont=dict(size=12))
+    return fig
+
+def create_trend_evolution_plot(evolution_data, feature_col, analysis_type):
+    """Create a grouped bar plot for trend evolution"""
+    fig = go.Figure()
+    
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c']  # Custom colors for seasons
+    
+    for idx, season in enumerate(['Fall24', 'Spring25', 'Fall25']):
+        fig.add_trace(go.Bar(
+            name=season,
+            x=evolution_data[feature_col],
+            y=evolution_data[season],
+            text=evolution_data[season].round(1),
+            textposition='auto',
+            marker_color=colors[idx]
+        ))
+    
+    fig.update_layout(
+        title=f"Top 10 {analysis_type} Evolution Across Seasons",
+        barmode='group',
+        height=500,
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        title_x=0.5,
+        title_font_size=20,
+        legend=dict(
+            bgcolor='rgba(0,0,0,0)',
+            bordercolor='rgba(0,0,0,0)',
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+        margin=dict(t=80, l=50, r=50, b=50)
+    )
+    
+    # Update grid and axes for better visibility
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.2)',
+                     title_font=dict(size=14), tickfont=dict(size=12))
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.2)',
+                     title_font=dict(size=14), tickfont=dict(size=12))
     return fig
 
 def main():
@@ -179,21 +261,7 @@ def main():
     evolution_data = evolution_data.fillna(0)
     evolution_data = evolution_data.sort_values('Fall25', ascending=False).head(10)
     
-    fig3 = go.Figure()
-    for season in ['Fall24', 'Spring25', 'Fall25']:
-        fig3.add_trace(go.Bar(
-            name=season,
-            x=evolution_data[feature_col],
-            y=evolution_data[season],
-            text=evolution_data[season].round(1),
-            textposition='auto',
-        ))
-    
-    fig3.update_layout(
-        title=f"Top 10 {analysis_type} Evolution Across Seasons",
-        barmode='group',
-        height=500
-    )
+    fig3 = create_trend_evolution_plot(evolution_data, feature_col, analysis_type)
     st.plotly_chart(fig3, use_container_width=True)
     
     # Feature Analysis Details
@@ -204,7 +272,7 @@ def main():
 if __name__ == "__main__":
     main()
 
-# Download buttons
+# Download buttons with improved styling
 st.sidebar.header("Export Data")
 if st.sidebar.download_button(
     "Download Current Trends",

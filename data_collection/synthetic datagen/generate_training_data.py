@@ -38,7 +38,7 @@ def generate_training_data(test_mode: bool = True, test_size: int = 5):
         # Define directories
         current_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.abspath(os.path.join(current_dir, '..', '..'))
-        source_dir = os.path.join(project_root, 'data', 'scraped', 'runway', 'Spring25')
+        source_dir = os.path.join(project_root, 'data', 'scraped', 'runway', 'Fall23')
         
         # Debug logging
         logging.info(f"Current directory: {current_dir}")

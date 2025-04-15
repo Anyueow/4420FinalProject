@@ -1,47 +1,47 @@
 Top Predicted Style Trends for Spring26:
-fur : 133.49 %
-fur : 133.49 %
-fur : 133.49 %
-relaxed elegance : 11.11 %
+fur : 139.4 %
+relaxed elegance : 6.17 %
 slow fashion : 4.94 %
+NA : NA %
+NA : NA %
 
 Top Predicted Category Trends for Spring26:
-turtleneck sweater : 141.55 %
-turtleneck sweater : 141.55 %
-corset-style belt : 122.72 %
-corset-style belt : 122.72 %
-corset-style belt : 122.72 %
+turtleneck sweater : 80.67 %
+corset-style belt : 66.01 %
+shearling slippers : 32.88 %
+belted shirt dress : 29.49 %
+sweater-style knit dress : 12.84 %
 
 Top Predicted Super Category Trends for Spring26:
-tops : 141.55 %
-tops : 141.55 %
-accessories : 54.52 %
-accessories : 54.52 %
-accessories : 54.52 %
+tops : 56.81 %
+footwear : 32.96 %
+accessories : 32.51 %
+dresses : 23.94 %
+outerwear : 7.92 %
 
 Top Predicted Pattern Trends for Spring26:
-long-pile faux fur : 44.44 %
 long-pile faux fur : 44.44 %
 open-weave knit : 16.67 %
 shearling : 16.67 %
 NA : NA %
+NA : NA %
 
 Style Trend Statistics:
-Average Style Trend Volatility: 53.14 %
-Number of Increasing Style Trends: 2
-Number of Decreasing Style Trends: 2
+Average Style Trend Volatility: 51.7 %
+Number of Increasing Style Trends: 4
+Number of Decreasing Style Trends: 3
 Number of Stable Style Trends: 0
 
 Category Trend Statistics:
-Average Category Trend Volatility: 61.79 %
-Number of Increasing Category Trends: 13
-Number of Decreasing Category Trends: 14
+Average Category Trend Volatility: 60.4 %
+Number of Increasing Category Trends: 27
+Number of Decreasing Category Trends: 34
 Number of Stable Category Trends: 0
 
 Super Category Trend Statistics:
-Average Super Category Trend Volatility: 48.95 %
-Number of Increasing Super Category Trends: 6
-Number of Decreasing Super Category Trends: 9
+Average Super Category Trend Volatility: 56.29 %
+Number of Increasing Super Category Trends: 15
+Number of Decreasing Super Category Trends: 16
 Number of Stable Super Category Trends: 0
 
 Pattern Trend Statistics:
@@ -49,3 +49,15 @@ Average Pattern Trend Volatility: 28.28 %
 Number of Increasing Pattern Trends: 0
 Number of Decreasing Pattern Trends: 1
 Number of Stable Pattern Trends: 0
+
+Color Trend Statistics:
+Average Color Trend Volatility: 25.11 %
+Number of Increasing Color Trends: 6
+Number of Decreasing Color Trends: 13
+Number of Stable Color Trends: 0
+
+Color Combination Trend Statistics:
+Average Color Combination Trend Volatility: 17.39 %
+Number of Increasing Color Combination Trends: 4
+Number of Decreasing Color Combination Trends: 12
+Number of Stable Color Combination Trends: 0
