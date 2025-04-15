@@ -31,28 +31,43 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environment
-venv/
-env/
-ENV/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-.DS_Store
-
 # Jupyter Notebook
 .ipynb_checkpoints
 *.ipynb
+
+# VS Code
+.vscode/
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Keep data files
+!data/predictions/*.csv
+!data/lstm_tests/*.csv
+
+# IDE
+.idea/
+*.swp
+*.swo
 
 # Logs
 *.log
 logs/
 
 # Local development
-.env
 .env.local 
 
 # kaggle api 

@@ -1,6 +1,6 @@
 """
 Generate labeled dataset using FashionCLIP for pseudo-labeling with detailed fashion categories.
-"""
+this will be used for our LSTM model to predict trends"""
 
 import os
 import logging
@@ -20,7 +20,6 @@ class DatasetGenerator:
     
     def __init__(self, confidence_threshold: float = 0.7, batch_size: int = 16):
         """Initialize CLIP model and detailed fashion categories."""
-        # Force CPU mode and basic processing
         self.device = "cpu"
         self.confidence_threshold = confidence_threshold
         self.batch_size = batch_size
@@ -43,7 +42,10 @@ class DatasetGenerator:
             logging.error(f"Error loading CLIP model: {str(e)}")
             raise
         
-        # Define detailed categories
+        '''
+        All Categories, styles and patterns were extracted from user aggregate data using X API. We looked at 
+        all relevant fashion terminilogy while creating this, so it very closely mirrors what's actually trending right now 
+        (especially on X)'''
         self.categories = {
             'tops': [
                 'blouse', 'puff-sleeve blouse', 'tie-front blouse', 'shirred blouse',

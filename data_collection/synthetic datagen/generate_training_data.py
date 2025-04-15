@@ -29,28 +29,23 @@ def generate_training_data(test_mode: bool = True, test_size: int = 5):
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
         
-        # Initialize dataset generator with very conservative settings
         generator = DatasetGenerator(
-            confidence_threshold=0.7,  # Only keep predictions with 70%+ confidence
-            batch_size=16  # Process 16 images at a time
-        )
+            confidence_threshold=0.7,  # Only keep predictions with 70%+ confidence (we want quality)
+            batch_size=16  
         
-        # Define directories
+        # Define directories (runway is the source of truth), we skept switching as we scraped data
         current_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.abspath(os.path.join(current_dir, '..', '..'))
         source_dir = os.path.join(project_root, 'data', 'scraped', 'runway', 'Fall23')
         
-        # Debug logging
         logging.info(f"Current directory: {current_dir}")
         logging.info(f"Project root: {project_root}")
         logging.info(f"Source directory: {source_dir}")
         
-        # Check if directory exists
         if not os.path.exists(source_dir):
             logging.error(f"Directory does not exist: {source_dir}")
             return
         
-        # Use test directory if in test mode
         if test_mode:
             output_dir = os.path.join(project_root, 'data', 'processed')
             logging.info("Running in TEST MODE")
@@ -60,7 +55,6 @@ def generate_training_data(test_mode: bool = True, test_size: int = 5):
         logging.info(f"Source directory: {source_dir}")
         logging.info(f"Output directory: {output_dir}")
         
-        # Clear any existing memory
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
@@ -87,19 +81,17 @@ def generate_training_data(test_mode: bool = True, test_size: int = 5):
         else:
             logging.info(f"Found {len(image_paths)} images in {source_dir}")
         
-        # Generate dataset with minimal memory usage
         dataset_info = generator.generate_dataset(
             source_dir=source_dir,
             output_dir=output_dir,
-            n_jobs=1,  # Single thread processing
-            image_paths=image_paths  # Pass specific images to process
+            n_jobs=1,  
+            image_paths=image_paths  
         )
         
         if not dataset_info:
             logging.error("Failed to generate dataset")
             return
         
-        # Force garbage collection
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
@@ -117,7 +109,6 @@ def generate_training_data(test_mode: bool = True, test_size: int = 5):
                 # Small delay to allow system to process output
                 gc.collect()
         
-        # Print statistics in sections
         print_sorted_stats(dataset_info['super_categories'], "Super-categories")
         print_sorted_stats(dataset_info['categories'], "Detailed categories")
         print_sorted_stats(dataset_info['super_styles'], "Style super-categories")
@@ -132,7 +123,6 @@ def generate_training_data(test_mode: bool = True, test_size: int = 5):
 if __name__ == "__main__":
     try:
         setup_logging()
-        # Process full dataset
         generate_training_data(test_mode=False)
     except KeyboardInterrupt:
         logging.info("\nProcess interrupted by user")

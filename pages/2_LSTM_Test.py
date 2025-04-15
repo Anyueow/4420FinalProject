@@ -5,14 +5,12 @@ import plotly.graph_objects as go
 from pathlib import Path
 import os
 
-# Set page config
 st.set_page_config(
     page_title="LSTM Test Results",
     page_icon="🧠",
     layout="wide"
 )
 
-# Custom CSS
 st.markdown("""
     <style>
 
@@ -84,7 +82,6 @@ def main():
         The model uses time series data to capture patterns and trends in fashion attributes.
     """)
     
-    # Categories for testing
     categories = {
         'style': 'Styles',
         'category': 'Categories',
@@ -93,23 +90,20 @@ def main():
         'color': 'Colors'
     }
     
-    # Category selector
     selected_category = st.selectbox(
         "Select Category to View Performance",
         options=list(categories.keys()),
         format_func=lambda x: categories[x]
     )
     
-    # Load and display test data
     df = load_test_data(selected_category)
     if df is not None:
-        # Display comparison chart
         st.plotly_chart(
             create_comparison_chart(df, selected_category),
             use_container_width=True
         )
         
-        # Calculate and display metrics
+        #   display metrics
         st.markdown("### Performance Metrics")
         col1, col2, col3 = st.columns(3)
         
@@ -125,7 +119,6 @@ def main():
             accuracy = (1 - (df['actual_fall25'] - df['predicted_fall25']).abs().sum() / df['actual_fall25'].sum()) * 100
             st.metric("Accuracy", f"{accuracy:.2f}%")
         
-        # Display detailed comparison
         st.markdown("### Detailed Comparison")
         comparison_df = df[['category', 'actual_fall25', 'predicted_fall25', 'error', 'confidence']]
         comparison_df.columns = ['Category', 'Actual', 'Predicted', 'Error', 'Confidence']

@@ -1,17 +1,15 @@
 import pandas as pd
 from pathlib import Path
 import os
-
+# scraped data and datagen create separate files for each season, this is a simple script to combine them
 def combine_fashion_labels(data_dir: str = None):
     """Combine fashion label CSV files from different seasons into one file."""
     if data_dir is None:
-        # Get the project root directory
         project_root = Path(__file__).parent.parent.parent
         data_dir = project_root / "data" / "processed"
     else:
         data_dir = Path(data_dir)
     
-    # List all fashion label CSV files
     csv_files = list(data_dir.glob("fashion_labels_*.csv"))
     
     if not csv_files:

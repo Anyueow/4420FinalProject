@@ -5,14 +5,12 @@ import plotly.graph_objects as go
 from pathlib import Path
 import os
 
-# Set page config
 st.set_page_config(
     page_title="What's Trending Now",
     page_icon="📊",
     layout="wide"
 )
 
-# Custom CSS
 st.markdown("""
     <style>
     .card {
@@ -87,7 +85,6 @@ def create_bar_chart(df, category, title):
 
 def create_color_grid(df):
     """Create an HTML grid of color swatches."""
-    # Get top 10 predictions
     top_10_colors = df.head(10)
     
     color_grid_html = '<div class="color-grid">'

@@ -1,6 +1,5 @@
 # Trend Prediction Script
 
-# Load required libraries
 library(keras)
 library(tensorflow)
 library(readr)
@@ -8,16 +7,13 @@ library(dplyr)
 library(tidyr)
 library(reticulate)
 
-# Import Python modules
 keras <- reticulate::import("tensorflow.keras")
 np <- reticulate::import("numpy")
 
 # Function to predict trends for a given category
 predict_trends <- function(category_type) {
-  # -------------------------
-  # 1. Data Loading & Preparation
-  # -------------------------
-  # Load the frequencies data
+
+  # find all the frequencies data generated from actual_trends.R
   data_file <- paste0("data/processed/", category_type, "_frequencies.csv")
   data <- read_csv(data_file)
   
@@ -56,9 +52,7 @@ predict_trends <- function(category_type) {
   # Reshape the input data to 3D array
   X_reshaped <- array(X_scaled, dim = c(nrow(X_scaled), ncol(X_scaled), 1))
   
-  # -------------------------
-  # 2. Model Building
-  # -------------------------
+
   timesteps <- dim(X_reshaped)[2]
   num_features <- dim(X_reshaped)[3]
   
@@ -77,10 +71,7 @@ predict_trends <- function(category_type) {
     optimizer = keras$optimizers$Adam(learning_rate = 0.001)
   )
   
-  # -------------------------
-  # 3. Model Training
-  # -------------------------
-  # Prepare training data
+  
   X_train <- X_np[, -ncol(X_np), , drop = FALSE]  # All seasons except last
   y_train <- X_np[, ncol(X_np), 1]  # Last season as target
   
@@ -110,21 +101,15 @@ predict_trends <- function(category_type) {
     verbose = 1L
   )
   
-  # -------------------------
-  # 4. Make Predictions
-  # -------------------------
+  #making predictions
   # Prepare input for prediction (last n-1 seasons)
   X_pred <- X_np[, -1, , drop = FALSE]  # Remove first season
-  X_pred <- np$array(X_pred, dtype = "float32")  # Ensure float32
+  X_pred <- np$array(X_pred, dtype = "float32")  
   
-  # Make predictions
   predictions_scaled <- model$predict(X_pred)
   predictions <- as.numeric(predictions_scaled) * X_sd[ncol(X)] + X_mean[ncol(X)]
   
-  # -------------------------
-  # 5. Results Analysis
-  # -------------------------
-  # Create results data frame
+  #creating a dataframe with the predicted values
   results_df <- data.frame(
     category = wide_data[[category_type]],
     predicted = predictions
@@ -144,7 +129,6 @@ predict_trends <- function(category_type) {
   print(paste("\nTop predicted", category_type, ":"))
   print(head(results_df, 5))
   
-  # Create directory if it doesn't exist
   if (!dir.exists("data/predictions")) {
     dir.create("data/predictions", recursive = TRUE)
   }
@@ -162,7 +146,6 @@ categories <- c("category", "pattern", "super_category", "style", "color")
 # Create a list to store results
 results <- list()
 
-# Run predictions for each category
 for (cat in categories) {
   print(paste("\nRunning predictions for", cat))
   results[[cat]] <- predict_trends(cat)

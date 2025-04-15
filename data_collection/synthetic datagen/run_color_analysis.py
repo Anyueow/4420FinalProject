@@ -1,5 +1,5 @@
 """
-Run color analysis on fashion labels and integrate results.
+Run color analysis script on the labelled dataset and integrate results. 
 """
 
 import os
