@@ -212,7 +212,7 @@ def main():
             ("🖼", "Runway Image Scraping", "Scrape and structure thousands of looks from global fashion weeks, organized by designer, season, and show. We have used the last three seasons for our project."),
             ("🧵", "Fashion Attribute Recognition", "Using CLIP-based and CNN models, we detect garments, patterns, colors, and styles—no manual tagging required."),
             ("📊", "Time Series Modeling", "We track how each attribute appears over time, layering in Google Trends data to gauge real-world consumer interest."),
-            ("🔮", "Trend Forecasting", "Through models like ARIMA, Prophet, and LSTM, we predict which fashion elements are rising, peaking, or fading—helping brands plan ahead.")
+            ("🔮", "Trend Forecasting", "Through an LSTM, we predict which fashion elements are rising, peaking, or fading—helping brands plan ahead.")
         ]
         
         for icon, title, description in steps:
