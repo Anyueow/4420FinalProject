@@ -44,12 +44,18 @@ st.markdown("""
 
 def load_trending_data(category):
     """Load prediction data for a given category."""
-    file_path = f"data/predictions/{category}_predictions.csv"
-    if os.path.exists(file_path):
-        df = pd.read_csv(file_path, skiprows=1, names=['category', 'predicted', 'confidence'])
-        df['predicted'] = pd.to_numeric(df['predicted'], errors='coerce')
-        return df
-    return None
+    try:
+        file_path = Path("data") / "predictions" / f"{category}_predictions.csv"
+        if file_path.exists():
+            df = pd.read_csv(file_path, skiprows=1, names=['category', 'predicted', 'confidence'])
+            df['predicted'] = pd.to_numeric(df['predicted'], errors='coerce')
+            return df
+        else:
+            st.warning(f"File not found: {file_path}")
+            return None
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        return None
 
 def create_bar_chart(df, category, title):
     """Create a bar chart for the given category."""

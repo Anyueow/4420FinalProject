@@ -27,10 +27,16 @@ st.markdown("""
 
 def load_test_data(category):
     """Load test data for a given category."""
-    file_path = f"data/lstm_tests/{category}_forecasting_test_results.csv"
-    if os.path.exists(file_path):
-        return pd.read_csv(file_path)
-    return None
+    try:
+        file_path = Path("data") / "lstm_tests" / f"{category}_forecasting_test_results.csv"
+        if file_path.exists():
+            return pd.read_csv(file_path)
+        else:
+            st.warning(f"File not found: {file_path}")
+            return None
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        return None
 
 def create_comparison_chart(df, category):
     """Create a comparison chart between actual and predicted values."""
